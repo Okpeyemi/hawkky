@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ────────────────────────────── Auth.js v5 standard ──────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Hawkky additions
+  passwordHash  String?
+  plan          UserPlan  @default(free)
+
+  accounts Account[]
+  sessions Session[]
+  profile  Profile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserPlan {
+  free
+  pro
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ────────────────────────────── Hawkky Profile ──────────────────────────────
+
+model Profile {
+  userId String @id
+
+  isDeveloper           Boolean  @default(true)
+  timezone              String   @default("Europe/Paris")
+  briefingHourLocal     Int      @default(7)
+  interests             String[] @default([])
+  stackTags             String[] @default([])
+  projectsDescription   String?  @db.Text
+
+  followedRepos         String[] @default([])
+  githubLogin           String?
+  githubAccessTokenEnc  String?  @db.Text
+
+  whatsappNumber        String?
+  whatsappEnabled       Boolean  @default(false)
+
+  onboardingCompletedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
