@@ -1,19 +1,20 @@
 "use client";
 
-export { HugeiconsIcon } from "@hugeicons/react";
 export {
-  Mail01Icon,
-  GoogleIcon,
-  GithubIcon,
   ArrowRight01Icon,
-  CheckmarkCircle02Icon,
-  Cancel01Icon,
-  ThumbsUpIcon,
-  ThumbsDownIcon,
-  Settings02Icon,
-  News01Icon,
-  RssIcon as Rss01Icon,
   Bookmark02Icon,
+  Cancel01Icon,
+  CheckmarkCircle02Icon,
+  GithubIcon,
+  GoogleIcon,
   Logout03Icon,
+  Mail01Icon,
+  News01Icon,
+  // Upstream package exports RssIcon (no Rss01Icon variant); aliased for naming consistency
+  RssIcon as Rss01Icon,
+  Settings02Icon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
   UserCircleIcon,
 } from "@hugeicons/core-free-icons";
+export { HugeiconsIcon } from "@hugeicons/react";
