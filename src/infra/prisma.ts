@@ -2,7 +2,7 @@ import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "../../generated/prisma";
 import ws from "ws";
-import { env } from "../env";
+import { env } from "@/src/env";
 
 if (typeof WebSocket === "undefined") {
   neonConfig.webSocketConstructor = ws;
