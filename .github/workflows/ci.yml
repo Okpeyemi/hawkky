@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec prisma generate
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - name: Unit tests (no DB)
+        env:
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          AUTH_SECRET: ci-secret-32chars-minimum-padding-padding
+          NEXTAUTH_URL: http://localhost:3000
+          DATABASE_URL: postgresql://noop:noop@localhost:5432/noop
+          FEEDBACK_SECRET: ci-feedback-secret-32chars-padding-padding
+          RESEND_API_KEY: ci-key
+          RESEND_FROM_EMAIL: noreply@hawkky.app
+          RESEND_FROM_NAME: Hawkky
+        run: pnpm test tests/unit
+
+      - name: Build
+        env:
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          AUTH_SECRET: ci-secret-32chars-minimum-padding-padding
+          NEXTAUTH_URL: http://localhost:3000
+          DATABASE_URL: postgresql://noop:noop@localhost:5432/noop
+          FEEDBACK_SECRET: ci-feedback-secret-32chars-padding-padding
+          RESEND_API_KEY: ci-key
+          RESEND_FROM_EMAIL: noreply@hawkky.app
+          RESEND_FROM_NAME: Hawkky
+        run: pnpm build
