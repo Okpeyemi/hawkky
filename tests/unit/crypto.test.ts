@@ -1,10 +1,9 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { encrypt, decrypt } from "@/src/infra/crypto";
+import { beforeAll, describe, expect, it } from "vitest";
+import { decrypt, encrypt } from "@/src/infra/crypto";
 
 beforeAll(() => {
   // Clé test 32 bytes (64 hex chars) — DOIT être dans process.env avant import du module
-  process.env.ENCRYPTION_KEY =
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  process.env.ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 });
 
 describe("crypto AES-256-GCM", () => {
