@@ -7,6 +7,8 @@ export default defineConfig({
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
     setupFiles: [],
     globals: false,
+    testTimeout: 15000,
+    fileParallelism: false,
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, ".") },

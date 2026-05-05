@@ -30,7 +30,7 @@ const SCOPED_BY_WHERE = new Set([
  * In all cases the injected userId overrides any user-supplied value, so a
  * malicious payload cannot impersonate another tenant.
  */
-export function forUser<T extends Record<string, unknown>>(delegate: T, userId: string): T {
+export function forUser<T extends object>(delegate: T, userId: string): T {
   return new Proxy(delegate, {
     get(target, prop: string, receiver) {
       const orig = Reflect.get(target, prop, receiver);
