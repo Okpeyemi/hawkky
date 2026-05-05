@@ -11,9 +11,9 @@ const serverEnvSchema = z.object({
   AUTH_GOOGLE_SECRET: z.string().optional(),
   ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/, "32 bytes hex required"),
   FEEDBACK_SECRET: z.string().min(32),
-  MAILEROO_API_KEY: z.string().min(1),
-  MAILEROO_FROM_EMAIL: z.string().email(),
-  MAILEROO_FROM_NAME: z.string().min(1),
+  RESEND_API_KEY: z.string().min(1),
+  RESEND_FROM_EMAIL: z.string().email(),
+  RESEND_FROM_NAME: z.string().min(1),
 });
 
 export const env = serverEnvSchema.parse(process.env);

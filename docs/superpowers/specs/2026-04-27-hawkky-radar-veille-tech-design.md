@@ -19,7 +19,7 @@ Ce qui distingue Hawkky d'un agrégateur RSS classique : **Claude raisonne** sur
 - Onboarding adaptatif (parcours dev / non-dev).
 - Sources supportées : RSS générique, Hacker News (Algolia), GitHub Trending, repos GitHub suivis, subreddits.
 - Pipeline IA : Claude Haiku 4.5 (scoring) puis Claude Sonnet 4.6 (synthèse).
-- Briefing par email (Maileroo) + web app (lecture, archive, feedback).
+- Briefing par email (Resend) + web app (lecture, archive, feedback).
 - Briefing WhatsApp via Evolution API auto-hébergée — *Should* (selon stabilité du canal).
 - Feedback "intéressant / pas pour moi" sur items — *Should* (data persistée dès J1, exploitation IA en post-MVP).
 - Dedup inter-sources — *Should*.
@@ -55,8 +55,8 @@ Paywall et quotas commerciaux ; recherche dans l'archive ; briefings multi-quoti
              │         │
              ▼         ▼
    ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐
-   │ Postgres (Neon) │  │  Anthropic API   │  │   Maileroo     │
-   │  via Prisma     │  │ Haiku + Sonnet   │  │   (email)      │
+   │ Postgres (Neon) │  │  Anthropic API   │  │     Resend     │
+   │  via Prisma     │  │ Haiku + Sonnet   │  │    (email)     │
    └─────────────────┘  └──────────────────┘  └────────────────┘
                                               ┌────────────────┐
                                               │ Evolution API  │
@@ -76,7 +76,7 @@ Paywall et quotas commerciaux ; recherche dans l'archive ; briefings multi-quoti
 | Auth | Auth.js v5 (Credentials + GitHub + Google) | Mature, très répandu, providers prêts |
 | Jobs | Inngest | Workflow steps retryables, cron natif, dev local CLI |
 | LLM | Anthropic API (Haiku 4.5 + Sonnet 4.6) | Validé pour le pipeline 2 étapes |
-| Email | Maileroo | Choix utilisateur |
+| Email | Resend | Choix utilisateur |
 | WhatsApp | Evolution API auto-hébergée (HTTP) | Déjà opérationnelle sur le VPS de l'utilisateur |
 | UI | shadcn/ui complet + HugeIcons + Tailwind | Choix utilisateur |
 | Polices | Inter (UI) + JetBrains Mono (code) | Standard tech, lisibilité |
@@ -186,7 +186,7 @@ Trois fonctions, chacune en steps individuellement retryables :
    ├─ pickTopN(N=12)
    ├─ synthesizeBriefing(Sonnet 4.6)      → Markdown final < 600 mots
    ├─ persistBriefing()
-   ├─ sendEmail(Maileroo)                 ─┐ canaux indépendants :
+   ├─ sendEmail(Resend)                   ─┐ canaux indépendants :
    └─ sendWhatsApp(Evolution API si actif) ─┘ un échec n'empêche pas l'autre
 ```
 
@@ -216,7 +216,7 @@ Pour éviter un pic Anthropic à 7h00 dans un fuseau commun, le déclenchement e
 | Synthèse Sonnet 4.6 (top 12) | 8k in / 2k out | ~$0.05 |
 | **Total IA / user / jour** | | **~$0.10** |
 
-Soit environ $3/user/mois en IA pure, environ $3.50/user/mois infra incluse (Maileroo, Vercel, Neon).
+Soit environ $3/user/mois en IA pure, environ $3.50/user/mois infra incluse (Resend, Vercel, Neon).
 
 ### Robustesse
 
@@ -283,7 +283,7 @@ Liste des briefings passés (date, nombre d'items, accès en lecture seule).
 - Bouton "Déconnecter GitHub" → supprime le token chiffré.
 - Bouton "Supprimer mon compte" → cascade delete + révocation OAuth.
 
-### Format email (Maileroo)
+### Format email (Resend)
 
 - Template HTML responsive (table-based pour compat clients mail).
 - En-tête : logo Hawkky + date + bouton "Voir dans le navigateur".
@@ -340,7 +340,7 @@ Les liens `hawkky.app/r/<id>` redirigent vers la source (302) et enregistrent un
 ### Secrets et chiffrement
 
 - `ENCRYPTION_KEY` (32 bytes, env Vercel) → AES-256-GCM pour les `githubAccessTokenEnc`.
-- `AUTH_SECRET`, `ANTHROPIC_API_KEY`, `MAILEROO_API_KEY`, `EVOLUTION_API_KEY`, `EVOLUTION_API_URL`, `DATABASE_URL`, `FEEDBACK_SECRET` : tous en env Vercel, jamais loggés, jamais exposés client.
+- `AUTH_SECRET`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `EVOLUTION_API_KEY`, `EVOLUTION_API_URL`, `DATABASE_URL`, `FEEDBACK_SECRET` : tous en env Vercel, jamais loggés, jamais exposés client.
 - `.env.example` documenté, `.env.local` dans `.gitignore`.
 
 ### SSRF (risque clé de l'ingestion RSS)
@@ -356,7 +356,7 @@ Mitigations dès le MVP :
 
 - Liens 👍/👎 dans email : URL `/api/feedback?token=<HMAC>` où le token = `HMAC-SHA256(userId|itemId|value, FEEDBACK_SECRET)`. Pas besoin d'être loggé pour cliquer.
 - Liens trackés WhatsApp `/r/<id>` : ID opaque via `nanoid`. Click → 302 + insert `ClickEvent`.
-- Pas de webhook entrant Maileroo / Evolution API au MVP (à brancher plus tard pour bounce handling).
+- Pas de webhook entrant Resend / Evolution API au MVP (à brancher plus tard pour bounce handling).
 
 ### Validation des entrées (Zod)
 
@@ -413,7 +413,7 @@ Toutes les API routes valident leur payload avec un schéma Zod avant Prisma. Li
 ### Métriques produit (instrumenter dès maintenant, exploiter plus tard)
 
 - Briefings envoyés / jour
-- Taux d'ouverture email (pixel Maileroo)
+- Taux d'ouverture email (tracking Resend)
 - Clics par item / briefing
 - Ratio 👍/👎 par utilisateur (signal de qualité du scoring)
 - Coût Anthropic moyen par briefing (alerte si > $0.20)
@@ -459,7 +459,7 @@ hawkky/
 │   ├── infra/                    # adaptateurs I/O (mockables en test)
 │   │   ├── prisma.ts
 │   │   ├── anthropic.ts          # client + prompt cache helpers
-│   │   ├── maileroo.ts
+│   │   ├── resend.ts
 │   │   ├── evolution.ts          # client WhatsApp
 │   │   ├── http-fetcher.ts       # GET avec SSRF guard
 │   │   └── crypto.ts             # AES-GCM
@@ -513,7 +513,7 @@ hawkky/
 | `ENCRYPTION_KEY` | 32 bytes (hex) — AES-GCM pour tokens GitHub |
 | `FEEDBACK_SECRET` | HMAC pour les liens 👍/👎 dans les emails |
 | `ANTHROPIC_API_KEY` | Claude (Haiku 4.5 + Sonnet 4.6) |
-| `MAILEROO_API_KEY` | Email transactionnel |
+| `RESEND_API_KEY` | Email transactionnel |
 | `EVOLUTION_API_URL` | URL HTTP de l'instance Evolution API auto-hébergée |
 | `EVOLUTION_API_KEY` | Auth Evolution API |
 | `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` | Endpoint Inngest |

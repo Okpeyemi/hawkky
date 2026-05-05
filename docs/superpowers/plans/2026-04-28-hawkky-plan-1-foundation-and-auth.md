@@ -6,7 +6,7 @@
 
 **Architecture:** Next.js App Router monolithe sur Vercel ; Postgres Neon via Prisma 6 (driver serverless `@prisma/adapter-neon`) ; Auth.js v5 avec session JWT et adapter Prisma ; trois groupes de routes — `(marketing)` publique, `(auth)` signin/signup/verify, `(app)` protégée par middleware. Helpers `crypto` AES-GCM et `forUser()` multi-tenant prêts pour Plans 2-5.
 
-**Tech Stack:** Next.js 15 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · HugeIcons React · Prisma 6 + `@prisma/adapter-neon` · Auth.js v5 (`next-auth@beta` ou stable v5) · `bcryptjs` · `zod` · Maileroo (HTTP) · Biome (lint+format) · Vitest · Playwright · pnpm.
+**Tech Stack:** Next.js 15 (App Router) · TypeScript strict · Tailwind v4 · shadcn/ui · HugeIcons React · Prisma 6 + `@prisma/adapter-neon` · Auth.js v5 (`next-auth@beta` ou stable v5) · `bcryptjs` · `zod` · Resend (HTTP) · Biome (lint+format) · Vitest · Playwright · pnpm.
 
 **Spec source:** [`docs/superpowers/specs/2026-04-27-hawkky-radar-veille-tech-design.md`](../specs/2026-04-27-hawkky-radar-veille-tech-design.md)
 
@@ -63,7 +63,7 @@ src/
 ├── infra/
 │   ├── prisma.ts                             # singleton + Neon adapter
 │   ├── crypto.ts                             # AES-256-GCM encrypt/decrypt
-│   └── maileroo.ts                           # POST transactional email
+│   └── resend.ts                             # POST transactional email
 ├── server/
 │   ├── for-user.ts                           # multi-tenancy guard
 │   ├── auth-actions.ts                       # signup, requestVerifyEmail (server actions)
@@ -217,10 +217,10 @@ ENCRYPTION_KEY=""        # openssl rand -hex 32
 # HMAC pour les liens 👍/👎 (Plan 5)
 FEEDBACK_SECRET=""       # openssl rand -hex 32
 
-# Email
-MAILEROO_API_KEY=""
-MAILEROO_FROM_EMAIL="briefing@hawkky.app"
-MAILEROO_FROM_NAME="Hawkky"
+# Email (Resend)
+RESEND_API_KEY=""
+RESEND_FROM_EMAIL="briefing@hawkky.app"   # à ajuster quand le domaine sera vérifié sur Resend
+RESEND_FROM_NAME="Hawkky"
 
 # (Plans 2+) Anthropic, Inngest, Evolution API, Upstash, Sentry — laissés vides pour le Plan 1
 ANTHROPIC_API_KEY=""
@@ -666,9 +666,9 @@ const serverEnvSchema = z.object({
   AUTH_GOOGLE_SECRET: z.string().optional(),
   ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/, "32 bytes hex required"),
   FEEDBACK_SECRET: z.string().min(32),
-  MAILEROO_API_KEY: z.string().min(1),
-  MAILEROO_FROM_EMAIL: z.string().email(),
-  MAILEROO_FROM_NAME: z.string().min(1),
+  RESEND_API_KEY: z.string().min(1),
+  RESEND_FROM_EMAIL: z.string().email(),
+  RESEND_FROM_NAME: z.string().min(1),
 });
 
 export const env = serverEnvSchema.parse(process.env);
@@ -1011,16 +1011,16 @@ git commit -m "feat(server): multi-tenancy forUser() guard with TDD (Plan 1 task
 
 ---
 
-## Task 7 : Maileroo client (transactional email)
+## Task 7 : Resend client (transactional email)
 
 **Files:**
-- Create: `src/infra/maileroo.ts`
+- Create: `src/infra/resend.ts`
 
 - [ ] **Step 1: Implémenter le client minimal**
 
-Maileroo expose une API REST simple. On code un client avec uniquement `sendTransactional`.
+Resend expose une API REST simple. On code un client avec uniquement `sendTransactional` — appel `fetch` direct (pas le SDK npm `resend`, par cohérence avec les autres intégrations HTTP du projet).
 
-Créer `src/infra/maileroo.ts` :
+Créer `src/infra/resend.ts` :
 
 ```ts
 import { env } from "@/env";
@@ -1033,22 +1033,24 @@ type SendInput = {
   replyTo?: string;
 };
 
-const MAILEROO_API_BASE = "https://smtp.maileroo.com/api/v2/emails";
+const RESEND_API_BASE = "https://api.resend.com/emails";
 
 /**
- * Sends a transactional email via Maileroo HTTP API.
+ * Sends a transactional email via Resend HTTP API.
  * Throws on non-2xx responses (caller's responsibility to retry / log).
  */
 export async function sendTransactional(input: SendInput): Promise<{ messageId: string }> {
-  const res = await fetch(MAILEROO_API_BASE, {
+  const from = `${env.RESEND_FROM_NAME} <${env.RESEND_FROM_EMAIL}>`;
+
+  const res = await fetch(RESEND_API_BASE, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": env.MAILEROO_API_KEY,
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: { email: env.MAILEROO_FROM_EMAIL, name: env.MAILEROO_FROM_NAME },
-      to: [{ email: input.to }],
+      from,
+      to: [input.to],
       subject: input.subject,
       html: input.html,
       text: input.text ?? stripHtml(input.html),
@@ -1058,10 +1060,10 @@ export async function sendTransactional(input: SendInput): Promise<{ messageId: 
 
   if (!res.ok) {
     const body = await res.text().catch(() => "<unreadable>");
-    throw new Error(`Maileroo error ${res.status}: ${body.slice(0, 500)}`);
+    throw new Error(`Resend error ${res.status}: ${body.slice(0, 500)}`);
   }
-  const json = (await res.json()) as { data?: { message_id?: string } };
-  return { messageId: json.data?.message_id ?? "unknown" };
+  const json = (await res.json()) as { id?: string };
+  return { messageId: json.id ?? "unknown" };
 }
 
 function stripHtml(html: string): string {
@@ -1073,7 +1075,10 @@ function stripHtml(html: string): string {
 }
 ```
 
-(Si l'endpoint exact ou le format diffère selon la doc Maileroo en vigueur au moment de l'implémentation — vérifier https://maileroo.com/docs et ajuster `MAILEROO_API_BASE` et le payload. Le contrat de la fonction `sendTransactional` ne doit pas changer.)
+Notes :
+- Le `from` Resend est une string unique au format `"Name <email>"` (pas un objet `{ email, name }`).
+- Tant que le domaine n'est pas vérifié sur Resend, `RESEND_FROM_EMAIL` peut être laissé sur un sender de test (`onboarding@resend.dev`) — à ajuster plus tard.
+- Si l'endpoint ou le format diffère selon la doc Resend en vigueur — vérifier https://resend.com/docs/api-reference/emails/send-email et ajuster. Le contrat de `sendTransactional` ne doit pas changer.
 
 - [ ] **Step 2: Typecheck**
 
@@ -1085,7 +1090,7 @@ pnpm typecheck
 
 ```bash
 git add -A
-git commit -m "feat(infra): Maileroo transactional email client (Plan 1 task 7)"
+git commit -m "feat(infra): Resend transactional email client (Plan 1 task 7)"
 ```
 
 ---
@@ -1316,7 +1321,7 @@ import { hash } from "bcryptjs";
 import { randomBytes, createHmac } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/src/infra/prisma";
-import { sendTransactional } from "@/src/infra/maileroo";
+import { sendTransactional } from "@/src/infra/resend";
 import { signupSchema, emailSchema } from "@/src/domain/profile/schemas";
 import { env } from "@/env";
 
@@ -1472,7 +1477,7 @@ pnpm typecheck
 
 ```bash
 git add -A
-git commit -m "feat(auth): signup + email verification (HMAC token + Maileroo) (Plan 1 task 9)"
+git commit -m "feat(auth): signup + email verification (HMAC token + Resend) (Plan 1 task 9)"
 ```
 
 ---
@@ -1751,7 +1756,7 @@ export default async function VerifyPage({
 
 Avec `pnpm dev` :
 1. Aller sur `/signup`, créer un compte avec un email de test → "Vérifie ta boîte mail" doit apparaître.
-2. Récupérer le lien dans Maileroo (ou logs locaux) → cliquer → "Email vérifié ✅".
+2. Récupérer le lien dans Resend (ou logs locaux) → cliquer → "Email vérifié ✅".
 3. Aller sur `/signin`, se connecter → redirige vers `/dashboard` (qui n'existe pas encore — 404 attendue à ce stade).
 
 - [ ] **Step 6: Commit**
@@ -2934,9 +2939,9 @@ jobs:
           NEXTAUTH_URL: http://localhost:3000
           DATABASE_URL: postgresql://noop:noop@localhost:5432/noop
           FEEDBACK_SECRET: ci-feedback-secret-32chars-padding-padding
-          MAILEROO_API_KEY: ci-key
-          MAILEROO_FROM_EMAIL: noreply@hawkky.app
-          MAILEROO_FROM_NAME: Hawkky
+          RESEND_API_KEY: ci-key
+          RESEND_FROM_EMAIL: noreply@hawkky.app
+          RESEND_FROM_NAME: Hawkky
         run: pnpm test tests/unit
 
       - name: Build
@@ -2946,9 +2951,9 @@ jobs:
           NEXTAUTH_URL: http://localhost:3000
           DATABASE_URL: postgresql://noop:noop@localhost:5432/noop
           FEEDBACK_SECRET: ci-feedback-secret-32chars-padding-padding
-          MAILEROO_API_KEY: ci-key
-          MAILEROO_FROM_EMAIL: noreply@hawkky.app
-          MAILEROO_FROM_NAME: Hawkky
+          RESEND_API_KEY: ci-key
+          RESEND_FROM_EMAIL: noreply@hawkky.app
+          RESEND_FROM_NAME: Hawkky
         run: pnpm build
 ```
 
@@ -3016,7 +3021,7 @@ Ajouter dans `package.json` :
 
 - [ ] **Step 2: Helper de seed pour bypass de vérification email en E2E**
 
-Pour ne pas avoir à intercepter Maileroo en CI, on autorise un endpoint admin de "force-verify" en mode test, gated par une env `E2E_TEST_SECRET` non publique.
+Pour ne pas avoir à intercepter Resend en CI, on autorise un endpoint admin de "force-verify" en mode test, gated par une env `E2E_TEST_SECRET` non publique.
 
 Créer `app/api/test/force-verify/route.ts` :
 
@@ -3061,7 +3066,7 @@ test("signup → verify (forced) → signin → onboarding → dashboard", async
   await page.getByRole("button", { name: /créer mon compte/i }).click();
   await expect(page.getByText(/Vérifie ta boîte mail/i)).toBeVisible();
 
-  // 2) Force verify (bypass Maileroo en E2E)
+  // 2) Force verify (bypass Resend en E2E)
   const r = await request.post("/api/test/force-verify", {
     headers: { "x-test-secret": E2E_SECRET, "content-type": "application/json" },
     data: { email },
@@ -3146,7 +3151,7 @@ git push --tags
 ## Critères de complétion du Plan 1 (Definition of Done)
 
 - [ ] Un nouveau visiteur peut s'inscrire à `/signup` avec email/password.
-- [ ] L'email de vérification arrive (visible dans Maileroo) et le lien active le compte.
+- [ ] L'email de vérification arrive (visible dans Resend) et le lien active le compte.
 - [ ] Un visiteur peut s'inscrire/se connecter via "Continuer avec GitHub" et "Continuer avec Google".
 - [ ] Un utilisateur connecté est redirigé vers `/onboarding` s'il n'a pas terminé l'onboarding.
 - [ ] L'onboarding 5 étapes fonctionne dans les deux variantes (dev / non-dev).
