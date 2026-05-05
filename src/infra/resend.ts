@@ -15,8 +15,6 @@ const RESEND_API_BASE = "https://api.resend.com/emails";
  * Throws on non-2xx responses (caller's responsibility to retry / log).
  */
 export async function sendTransactional(input: SendInput): Promise<{ messageId: string }> {
-  const from = `${env.RESEND_FROM_NAME} <${env.RESEND_FROM_EMAIL}>`;
-
   const res = await fetch(RESEND_API_BASE, {
     method: "POST",
     headers: {
@@ -24,7 +22,7 @@ export async function sendTransactional(input: SendInput): Promise<{ messageId: 
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from,
+      from: env.RESEND_FROM,
       to: [input.to],
       subject: input.subject,
       html: input.html,

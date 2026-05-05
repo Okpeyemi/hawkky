@@ -219,8 +219,7 @@ FEEDBACK_SECRET=""       # openssl rand -hex 32
 
 # Email (Resend)
 RESEND_API_KEY=""
-RESEND_FROM_EMAIL="briefing@hawkky.app"   # à ajuster quand le domaine sera vérifié sur Resend
-RESEND_FROM_NAME="Hawkky"
+RESEND_FROM="Hawkky <briefing@hawkky.app>"   # string unique (Resend accepte "Name <email>" ou juste "email")
 
 # (Plans 2+) Anthropic, Inngest, Evolution API, Upstash, Sentry — laissés vides pour le Plan 1
 ANTHROPIC_API_KEY=""
@@ -667,8 +666,7 @@ const serverEnvSchema = z.object({
   ENCRYPTION_KEY: z.string().regex(/^[0-9a-f]{64}$/, "32 bytes hex required"),
   FEEDBACK_SECRET: z.string().min(32),
   RESEND_API_KEY: z.string().min(1),
-  RESEND_FROM_EMAIL: z.string().email(),
-  RESEND_FROM_NAME: z.string().min(1),
+  RESEND_FROM: z.string().min(1),
 });
 
 export const env = serverEnvSchema.parse(process.env);
@@ -1040,8 +1038,6 @@ const RESEND_API_BASE = "https://api.resend.com/emails";
  * Throws on non-2xx responses (caller's responsibility to retry / log).
  */
 export async function sendTransactional(input: SendInput): Promise<{ messageId: string }> {
-  const from = `${env.RESEND_FROM_NAME} <${env.RESEND_FROM_EMAIL}>`;
-
   const res = await fetch(RESEND_API_BASE, {
     method: "POST",
     headers: {
@@ -1049,7 +1045,7 @@ export async function sendTransactional(input: SendInput): Promise<{ messageId: 
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from,
+      from: env.RESEND_FROM,
       to: [input.to],
       subject: input.subject,
       html: input.html,
@@ -1076,8 +1072,8 @@ function stripHtml(html: string): string {
 ```
 
 Notes :
-- Le `from` Resend est une string unique au format `"Name <email>"` (pas un objet `{ email, name }`).
-- Tant que le domaine n'est pas vérifié sur Resend, `RESEND_FROM_EMAIL` peut être laissé sur un sender de test (`onboarding@resend.dev`) — à ajuster plus tard.
+- Le `from` Resend est une string unique au format `"Name <email>"` (ou juste `"email"`) — c'est pour ça qu'on stocke en une seule env var `RESEND_FROM`.
+- Tant que le domaine n'est pas vérifié sur Resend, `RESEND_FROM` peut être laissé sur un sender de test (`"onboarding@resend.dev"`) — à ajuster plus tard.
 - Si l'endpoint ou le format diffère selon la doc Resend en vigueur — vérifier https://resend.com/docs/api-reference/emails/send-email et ajuster. Le contrat de `sendTransactional` ne doit pas changer.
 
 - [ ] **Step 2: Typecheck**
@@ -2940,8 +2936,7 @@ jobs:
           DATABASE_URL: postgresql://noop:noop@localhost:5432/noop
           FEEDBACK_SECRET: ci-feedback-secret-32chars-padding-padding
           RESEND_API_KEY: ci-key
-          RESEND_FROM_EMAIL: noreply@hawkky.app
-          RESEND_FROM_NAME: Hawkky
+          RESEND_FROM: "Hawkky <noreply@hawkky.app>"
         run: pnpm test tests/unit
 
       - name: Build
@@ -2952,8 +2947,7 @@ jobs:
           DATABASE_URL: postgresql://noop:noop@localhost:5432/noop
           FEEDBACK_SECRET: ci-feedback-secret-32chars-padding-padding
           RESEND_API_KEY: ci-key
-          RESEND_FROM_EMAIL: noreply@hawkky.app
-          RESEND_FROM_NAME: Hawkky
+          RESEND_FROM: "Hawkky <noreply@hawkky.app>"
         run: pnpm build
 ```
 

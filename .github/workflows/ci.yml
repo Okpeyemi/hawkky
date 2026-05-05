@@ -38,8 +38,7 @@ jobs:
           DATABASE_URL: postgresql://noop:noop@localhost:5432/noop
           FEEDBACK_SECRET: ci-feedback-secret-32chars-padding-padding
           RESEND_API_KEY: ci-key
-          RESEND_FROM_EMAIL: noreply@hawkky.app
-          RESEND_FROM_NAME: Hawkky
+          RESEND_FROM: "Hawkky <noreply@hawkky.app>"
         run: pnpm test tests/unit
 
       - name: Build
@@ -50,6 +49,5 @@ jobs:
           DATABASE_URL: postgresql://noop:noop@localhost:5432/noop
           FEEDBACK_SECRET: ci-feedback-secret-32chars-padding-padding
           RESEND_API_KEY: ci-key
-          RESEND_FROM_EMAIL: noreply@hawkky.app
-          RESEND_FROM_NAME: Hawkky
+          RESEND_FROM: "Hawkky <noreply@hawkky.app>"
         run: pnpm build
