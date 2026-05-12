@@ -17,12 +17,13 @@ model User {
   image         String?
 
   // Hawkky additions
-  passwordHash  String?
-  plan          UserPlan  @default(free)
+  passwordHash String?
+  plan         UserPlan @default(free)
 
-  accounts Account[]
-  sessions Session[]
-  profile  Profile?
+  accounts      Account[]
+  sessions      Session[]
+  profile       Profile?
+  subscriptions Subscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -74,19 +75,19 @@ model VerificationToken {
 model Profile {
   userId String @id
 
-  isDeveloper           Boolean  @default(true)
-  timezone              String   @default("Europe/Paris")
-  briefingHourLocal     Int      @default(7)
-  interests             String[] @default([])
-  stackTags             String[] @default([])
-  projectsDescription   String?  @db.Text
+  isDeveloper         Boolean  @default(true)
+  timezone            String   @default("Europe/Paris")
+  briefingHourLocal   Int      @default(7)
+  interests           String[] @default([])
+  stackTags           String[] @default([])
+  projectsDescription String?  @db.Text
 
-  followedRepos         String[] @default([])
-  githubLogin           String?
-  githubAccessTokenEnc  String?  @db.Text
+  followedRepos        String[] @default([])
+  githubLogin          String?
+  githubAccessTokenEnc String?  @db.Text
 
-  whatsappNumber        String?
-  whatsappEnabled       Boolean  @default(false)
+  whatsappNumber  String?
+  whatsappEnabled Boolean @default(false)
 
   onboardingCompletedAt DateTime?
 
@@ -94,4 +95,72 @@ model Profile {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ────────────────────────────── Ingestion ──────────────────────────────
+
+enum SourceKind {
+  rss
+  hn_top
+  reddit_subreddit
+  github_trending_lang
+  github_repo
+}
+
+model Source {
+  id          String     @id @default(cuid())
+  kind        SourceKind
+  key         String     @db.Text
+  displayName String
+
+  addedAt DateTime @default(now())
+
+  subscriptions Subscription[]
+  items         Item[]
+  fetchState    SourceFetch?
+
+  @@unique([kind, key])
+  @@index([kind])
+}
+
+model Subscription {
+  id       String   @id @default(cuid())
+  userId   String
+  sourceId String
+  addedAt  DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sourceId])
+  @@index([userId])
+  @@index([sourceId])
+}
+
+model Item {
+  id           String    @id @default(cuid())
+  sourceId     String
+  urlCanonical String    @db.Text
+  hash         String    @unique
+  title        String    @db.Text
+  excerpt      String?   @db.Text
+  content      String?   @db.Text
+  publishedAt  DateTime?
+  fetchedAt    DateTime  @default(now())
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, fetchedAt(sort: Desc)])
+  @@index([publishedAt(sort: Desc)])
+}
+
+model SourceFetch {
+  sourceId      String    @id
+  lastFetchedAt DateTime?
+  lastSuccessAt DateTime?
+  lastError     String?   @db.Text
+  etag          String?
+  lastModified  String?
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 }
