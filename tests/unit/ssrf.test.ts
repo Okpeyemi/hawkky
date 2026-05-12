@@ -9,7 +9,7 @@ vi.mock("node:dns", () => ({
   },
 }));
 
-import { isPrivateIp, assertSafeUrl } from "@/src/infra/ssrf";
+import { assertSafeUrl, isPrivateIp } from "@/src/infra/ssrf";
 
 describe("isPrivateIp", () => {
   it("flags loopback v4", () => {
