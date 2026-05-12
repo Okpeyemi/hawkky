@@ -13,6 +13,8 @@ const serverEnvSchema = z.object({
   FEEDBACK_SECRET: z.string().min(32),
   RESEND_API_KEY: z.string().min(1),
   RESEND_FROM: z.string().min(1),
+  INNGEST_EVENT_KEY: z.string().optional(),
+  INNGEST_SIGNING_KEY: z.string().optional(),
 });
 
 export const env = serverEnvSchema.parse(process.env);
