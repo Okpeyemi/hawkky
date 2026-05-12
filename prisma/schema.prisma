@@ -163,4 +163,6 @@ model SourceFetch {
   lastModified  String?
 
   source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([lastFetchedAt])
 }
