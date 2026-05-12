@@ -1,4 +1,4 @@
-import { Inngest, eventType, staticSchema } from "inngest";
+import { eventType, Inngest, staticSchema } from "inngest";
 
 /**
  * Typed event definitions for Hawkky.

@@ -1,6 +1,6 @@
-import { inngest } from "@/src/inngest/client";
-import { prisma } from "@/src/infra/prisma";
 import { drivers } from "@/src/infra/parsers/registry";
+import { prisma } from "@/src/infra/prisma";
+import { inngest } from "@/src/inngest/client";
 import { upsertItems } from "@/src/server/items-service";
 
 /**
