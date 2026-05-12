@@ -28,7 +28,11 @@ const HN_TOP_LIMIT = 30;
 
 export const drivers: Record<Source["kind"], FetchAndParse> = {
   rss: async (s, prev) => {
-    const r = await safeFetch(s.key, prev);
+    const isLocalFixture =
+      process.env.NODE_ENV !== "production" &&
+      !!process.env.NEXTAUTH_URL &&
+      s.key.startsWith(process.env.NEXTAUTH_URL);
+    const r = await safeFetch(s.key, { ...prev, trustedHost: isLocalFixture });
     return toOutcome(r, parseRss);
   },
 
