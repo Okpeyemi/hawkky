@@ -36,7 +36,6 @@ export async function safeFetch(url: string, opts: FetchOptions = {}): Promise<F
     const res = await request(url, {
       method: "GET",
       headers,
-      maxRedirections: 3,
       signal: ac.signal,
     });
     clearTimeout(timer);
